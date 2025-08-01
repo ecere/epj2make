@@ -94,11 +94,22 @@ class epj2makeApp : /*Gui*/ Application
                if(++c < argc)
                {
                   const String path = argv[c];
-                  delete optionsCompiler;
                   if(FileExists(path))
-                     optionsCompiler = CompilerConfig::read(path);
+                  {
+                     defaultCompiler = CompilerConfig::read(path);
+                     if(defaultCompiler)
+                        incref defaultCompiler;
+                     else
+                     {
+                        printf($"Error: Failed to read compiler configuration file (%s).\n", path);
+                        valid = false;
+                     }
+                  }
                   else
+                  {
                      printf($"Error: Project compiler configuration file (%s) was not found.\n", path);
+                     valid = false;
+                  }
                }
                else
                   valid = false;
@@ -274,23 +285,32 @@ class epj2makeApp : /*Gui*/ Application
             strlwr(extension);
             if(!strcmp(extension, ProjectExtension))
             {
-               if(noGlobalSettings)
-                  defaultCompiler = MakeDefaultCompiler("Default", true);
-               else
+               if(!defaultCompiler)
                {
-                  const char * compiler = getenv("COMPILER");
-                  if(!compiler) compiler = "Default";
-                  settingsContainer.Load();
-                  compilerConfig.compilers.read(settingsContainer);
+                  if(noGlobalSettings)
+                     defaultCompiler = MakeDefaultCompiler("Default", true);
+                  else
+                  {
+                     const char * compiler = getenv("COMPILER");
+                     settingsContainer.Load();
+                     compilerConfig.compilers.read(settingsContainer);
 
-                  delete settingsContainer;
+                     delete settingsContainer;
+
+                     if(!compiler) compiler = "Default";
 
       // TODO: Command line option to choose between the two
       // or a command line option to not use global settings
       //defaultCompiler = MakeDefaultCompiler();
-                  defaultCompiler = compilerConfig.compilers.GetCompilerConfig(compiler);
+                     defaultCompiler = compilerConfig.compilers.GetCompilerConfig(compiler);
+                     if(!defaultCompiler)
+                     {
+                        defaultCompiler = MakeDefaultCompiler("Default", true);
+                        PrintLn($"WARNING: failure to load compiler configuration for ", compiler, "(use -noglobalsettings for default)");
+                     }
       // possible TODO: use the workspace to select the active compiler
       // TODO: option to specify compiler name when using global settings
+                  }
                }
 
                if(optionsCompiler.makeCommand)
